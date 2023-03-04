@@ -1,5 +1,6 @@
 import random
 import pygame
+import networkx as nx
 
 # Set up the game window
 pygame.init()
@@ -18,7 +19,7 @@ lever_width = 100
 lever_height = 10
 apple_speed = 5
 lever_speed = 10
-game_duration = 120 # in seconds
+game_duration = 120  # in seconds
 
 max_lever_displacement = 20
 
@@ -32,23 +33,31 @@ score = 0
 game_start_time = pygame.time.get_ticks()
 
 # Define some functions
+
+
 def draw_laser_scan(x_pos, obstacle_height=0):
-    pygame.draw.rect(screen, laser_color, (x_pos + lever_width/2, obstacle_height, 1, screen_height))  
+    pygame.draw.rect(screen, laser_color, (x_pos + lever_width /
+                     2, obstacle_height, 1, screen_height))
+
 
 def draw_lever(x_pos):
-    pygame.draw.rect(screen, lever_color, (x_pos, screen_height - lever_height, lever_width, lever_height))
+    pygame.draw.rect(screen, lever_color, (x_pos, screen_height -
+                     lever_height, lever_width, lever_height))
+
 
 def draw_apple(x_pos, y_pos, color):
     pygame.draw.circle(screen, color, (x_pos, y_pos), apple_radius)
 
+
 def generate_apple():
     x_pos = random.randint(apple_radius, screen_width - apple_radius)
     y_pos = 0
-    if random.random() < 0.2: # 20% chance of generating a bad apple
+    if random.random() < 0.2:  # 20% chance of generating a bad apple
         color = bad_apple_color
     else:
         color = good_apple_color
     return (x_pos, y_pos, color)
+
 
 def detect_collision(apple, lever_pos):
     x_pos, y_pos, color = apple
@@ -62,66 +71,89 @@ def find_apple_in_laser_range(x_pos, apples):
     closest_apple = None
     lever_center = x_pos + lever_width/2
     for apple in apples:
-      # Choose closest in height
-      if abs(apple[0] - lever_center) < apple_radius:
-        closest_apple = max(closest_apple, apple, key=lambda a: 0 if a is None else a[1]) 
-        
+        # Choose closest in height
+        if abs(apple[0] - lever_center) < apple_radius:
+            closest_apple = max(closest_apple, apple,
+                                key=lambda a: 0 if a is None else a[1])
+
     return closest_apple
-         
-      
 
 
 ########################################################################
-# 
-# 
+#
+#
 # Your code goes in this section below
 # Avoid acessing global variables.
-# 
+#
 ########################################################################
 
-# World model should contain data and methods 
+# World model should contain data and methods
 # to represent and predict how the world works
 class WorldModel:
-  pass
+    def __init__(self):
+        # Grafo ponderado que conterá as informações das seções da tela a serem visitadas pelo agente
+        # Cada seção será representada por um nó
+        # As arestas do grafo terão o peso referente à distância de uma seção para outra
+        apples_graph = nx.Graph()
 
 
 # Agent contains its reaction based on sensors and its understanding
 # of the world. This is where you decide what action you take
 class Agent:
-  def __init__(self, wm, max_lever_displacement, arena_width):
-    self.worlmodel = wm
-    # O maximo de unidades que voce pode se mover na decisao
-    self.max_lever_displacement = max_lever_displacement 
-    
-    # Tamanho da arena
-    self.arena_width = arena_width
+    def __init__(self, wm, max_lever_displacement, arena_width):
+        self.worlmodel = wm
+        # O maximo de unidades que voce pode se mover na decisao
+        self.max_lever_displacement = max_lever_displacement
 
-  # Essa função recebe dados dos sensores como argumento
-  # e retorna o nova posicao. A nova posicao nao pode ser
-  # mais distante que max_lever_displacement da anterior
-  def decision(self, lever_pos, laser_scan, score):
-    print(f"{lever_pos=}, {laser_scan=}, {score=}")
-    # Acessar a posição do mouse é apenas para facilitar depuração
-    # a solução final não deve acessar os objetos ou funções do pygame
-    desired_lever_pos = pygame.mouse.get_pos()[0] - lever_width/2
-    return desired_lever_pos
+        # Tamanho da arena
+        self.arena_width = arena_width
 
+        self.lever_width = lever_width
+
+    # Essa função recebe dados dos sensores como argumento
+    # e retorna o nova posicao. A nova posicao nao pode ser
+    # mais distante que max_lever_displacement da anterior
+    def decision(self, lever_pos, laser_scan, score):
+        print(f"{lever_pos=}, {laser_scan=}, {score=}")
+        # Acessar a posição do mouse é apenas para facilitar depuração
+        # a solução final não deve acessar os objetos ou funções do pygame
+
+        # Armazena o limite máximo de movimentação do agente
+        lever_movement_limit = self.lever_width/2 + self.max_lever_displacement
+
+        # Representa o tamanho da seção da maçã
+        apple_section_size = apple_radius * 2 - 1
+
+        direction = 'right'
+        desired_lever_pos = lever_pos
+
+        if(direction == 'right'):
+            desired_lever_pos = lever_pos + apple_section_size
+            screen_right_pos_limit = self.arena_width - self.lever_width/2 - 1
+            if(desired_lever_pos >= screen_right_pos_limit):
+                desired_lever_pos = screen_right_pos_limit
+        elif(direction == 'left'):
+            desired_lever_pos = lever_pos - apple_section_size
+            screen_left_pos_limit = 0 - self.lever_width/2
+            if(desired_lever_pos < screen_left_pos_limit):
+                desired_lever_pos = screen_left_pos_limit
+
+        return desired_lever_pos
 
 
 ########################################################################
-# 
-# 
+#
+#
 # Main game loop
-# 
-# 
+#
+#
 ########################################################################
-
 wm = WorldModel()
 agent = Agent(wm, max_lever_displacement, screen_width)
 
 running = True
 apples = []
-lever_pos = screen_width / 2
+lever_pos = 0 - lever_width/2
 closest_apple = None
 while running:
     # Handle events
@@ -133,29 +165,31 @@ while running:
     screen.fill((255, 255, 255))
 
     # Draw the lever
-    
+
     agent.decision(lever_pos, None, score)
-    
+
     closest_apple_distance = None
     if closest_apple is not None:
-      closest_apple_distance = {
-      	"distance": (screen_height - lever_height) - closest_apple[1] - apple_radius,
-      	"color": "red" if closest_apple[2] == (255, 0, 0) else "green"
-      }
-    #print(f"{closest_apple_distance=} with data {closest_apple=}")  
-    desired_lever_pos = agent.decision(lever_pos, closest_apple_distance, score)
+        closest_apple_distance = {
+            "distance": (screen_height - lever_height) - closest_apple[1] - apple_radius,
+            "color": "red" if closest_apple[2] == (255, 0, 0) else "green"
+        }
+    #print(f"{closest_apple_distance=} with data {closest_apple=}")
+    desired_lever_pos = agent.decision(
+        lever_pos, closest_apple_distance, score)
     if abs(lever_pos - desired_lever_pos) > lever_width/2 + max_lever_displacement:
-      print("Max lever displacement exceeded")
-    else: 
-      lever_pos = desired_lever_pos
-    
+        print("Max lever displacement exceeded")
+    else:
+        lever_pos = desired_lever_pos
+
     closest_apple = find_apple_in_laser_range(lever_pos, apples)
-    
+
     draw_lever(lever_pos)
-    draw_laser_scan(lever_pos, 0 if closest_apple is None else closest_apple[1])	
-    
+    draw_laser_scan(
+        lever_pos, 0 if closest_apple is None else closest_apple[1])
+
     # Generate apples
-    if random.random() < 0.05: # 5% chance of generating an apple in each frame
+    if random.random() < 0.05:  # 5% chance of generating an apple in each frame
         apple = generate_apple()
         if apple[2] == good_apple_color:
             good_apple_count += 1
@@ -165,7 +199,7 @@ while running:
 
     # Move apples and detect collisions
     novel_apples = []
-    for idx,apple in enumerate(apples):
+    for idx, apple in enumerate(apples):
         x_pos, y_pos, color = apple
         y_pos += apple_speed
         if detect_collision(apple, lever_pos):
@@ -173,13 +207,13 @@ while running:
                 score += good_apple_value
             else:
                 score += bad_apple_value
-        elif y_pos >= screen_height: 
+        elif y_pos >= screen_height:
             pass
         else:
             novel_apples.append((x_pos, y_pos, color))
             draw_apple(x_pos, y_pos, color)
-    apples = novel_apples     
-            
+    apples = novel_apples
+
     # Draw the score
     score_text = "Score: " + str(score)
     font = pygame.font.SysFont("Arial", 32)
@@ -200,7 +234,8 @@ final_score_text = "Final score: " + str(score)
 print(f"score: {score}")
 font = pygame.font.SysFont("Arial", 64)
 final_score_surface = font.render(final_score_text, True, (0, 0, 0))
-final_score_rect = final_score_surface.get_rect(center=(screen_width/2, screen_height/2))
+final_score_rect = final_score_surface.get_rect(
+    center=(screen_width/2, screen_height/2))
 screen.blit(final_score_surface, final_score_rect)
 pygame.display.update()
 
@@ -208,4 +243,4 @@ pygame.display.update()
 pygame.time.wait(3000)
 
 # Quit the game
-pygame.quit()    
+pygame.quit()
