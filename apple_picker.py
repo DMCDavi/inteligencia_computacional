@@ -94,7 +94,13 @@ class WorldModel:
         # Grafo ponderado que conterá as informações das seções da tela a serem visitadas pelo agente
         # Cada seção será representada por um nó
         # As arestas do grafo terão o peso referente à distância de uma seção para outra
-        apples_graph = nx.Graph()
+        self.graph = nx.Graph()
+
+    def createNode(self, info):
+        self.graph.add_node(info)
+
+    def getNodes(self):
+        return self.graph.nodes()
 
 
 # Agent contains its reaction based on sensors and its understanding
@@ -108,13 +114,24 @@ class Agent:
         # Tamanho da arena
         self.arena_width = arena_width
 
+        # Tamanho do cesto
         self.lever_width = lever_width
+
+        # Limite direito da tela
+        self.screen_right_pos_limit = arena_width - lever_width/2 - 1
+
+        # Limite esquerdo da tela
+        self.screen_left_pos_limit = 0 - lever_width/2
 
     # Essa função recebe dados dos sensores como argumento
     # e retorna o nova posicao. A nova posicao nao pode ser
     # mais distante que max_lever_displacement da anterior
     def decision(self, lever_pos, laser_scan, score):
         print(f"{lever_pos=}, {laser_scan=}, {score=}")
+
+        info = LaserScanInfo(lever_pos, laser_scan, score)
+        self.worlmodel.createNode(info)
+
         # Acessar a posição do mouse é apenas para facilitar depuração
         # a solução final não deve acessar os objetos ou funções do pygame
 
@@ -129,17 +146,24 @@ class Agent:
 
         if(direction == 'right'):
             desired_lever_pos = lever_pos + apple_section_size
-            screen_right_pos_limit = self.arena_width - self.lever_width/2 - 1
-            if(desired_lever_pos >= screen_right_pos_limit):
-                desired_lever_pos = screen_right_pos_limit
+            if(desired_lever_pos >= self.screen_right_pos_limit):
+                desired_lever_pos = lever_pos
         elif(direction == 'left'):
             desired_lever_pos = lever_pos - apple_section_size
-            screen_left_pos_limit = 0 - self.lever_width/2
-            if(desired_lever_pos < screen_left_pos_limit):
-                desired_lever_pos = screen_left_pos_limit
+            if(desired_lever_pos < self.screen_left_pos_limit):
+                desired_lever_pos = lever_pos
 
         return desired_lever_pos
 
+
+class LaserScanInfo:
+    def __init__(self, lever_pos, laser_scan, score):
+        self.lever_pos = lever_pos
+        self.laser_scan = laser_scan
+        self.score = score
+
+    def getInfo(self):
+        return f"[{self.lever_pos}, {self.laser_scan}, {self.score}]"
 
 ########################################################################
 #
