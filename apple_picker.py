@@ -1,6 +1,7 @@
 import random
 import pygame
 import networkx as nx
+import matplotlib.pyplot as plt
 
 # Set up the game window
 pygame.init()
@@ -96,15 +97,29 @@ class WorldModel:
         # As arestas do grafo terão o peso referente à distância de uma seção para outra
         self.graph = nx.Graph()
 
-    def createNode(self, info):
+    def addNode(self, info):
         self.graph.add_node(info)
 
     def getNodes(self):
         return self.graph.nodes()
 
+    def addEdge(self, node1, node2, weight):
+        self.graph.add_edge(node1, node2, weight=weight)
+
+    def getNodeByLeverPos(self, lever_pos):
+        searched_node = None
+        for node in self.getNodes():
+            if(node.getLeverPos() == lever_pos):
+                searched_node = node
+        return searched_node
+
+    def printGraph(self):
+        nx.draw(self.graph)
 
 # Agent contains its reaction based on sensors and its understanding
 # of the world. This is where you decide what action you take
+
+
 class Agent:
     def __init__(self, wm, max_lever_displacement, arena_width):
         self.worlmodel = wm
@@ -130,15 +145,13 @@ class Agent:
         print(f"{lever_pos=}, {laser_scan=}, {score=}")
 
         info = LaserScanInfo(lever_pos, laser_scan, score)
-        nodes = self.worlmodel.getNodes()
-        can_create_node = True
+        actual_node = None
 
-        for node in nodes:
-            if(node.getLeverPos() == lever_pos):
-                can_create_node = False
-
-        if(can_create_node):
-            self.worlmodel.createNode(info)
+        searched_node = self.worlmodel.getNodeByLeverPos(lever_pos)
+        if(searched_node == None):
+            self.worlmodel.addNode(info)
+        else:
+            searched_node.setInfo(lever_pos, laser_scan, score)
 
         # Acessar a posição do mouse é apenas para facilitar depuração
         # a solução final não deve acessar os objetos ou funções do pygame
@@ -161,6 +174,20 @@ class Agent:
             if(desired_lever_pos < self.screen_left_pos_limit):
                 desired_lever_pos = lever_pos
 
+        if(self.worlmodel.getNodeByLeverPos(desired_lever_pos) == None):
+            actual_node = self.worlmodel.getNodeByLeverPos(
+                lever_pos)
+
+            self.worlmodel.addNode(
+                LaserScanInfo(desired_lever_pos, None, score))
+            desired_node = self.worlmodel.getNodeByLeverPos(
+                desired_lever_pos)
+            self.worlmodel.addEdge(
+                actual_node, desired_node, desired_lever_pos - lever_pos)
+
+        # self.worlmodel.printGraph()
+        # plt.savefig('joao.png')
+
         return desired_lever_pos
 
 
@@ -170,11 +197,17 @@ class LaserScanInfo:
         self.laser_scan = laser_scan
         self.score = score
 
+    def setInfo(self, lever_pos, laser_scan, score):
+        self.lever_pos = lever_pos
+        self.laser_scan = laser_scan
+        self.score = score
+
     def getInfo(self):
         return f"[{self.lever_pos}, {self.laser_scan}, {self.score}]"
 
     def getLeverPos(self):
         return self.lever_pos
+
 
 ########################################################################
 #
