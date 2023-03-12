@@ -119,6 +119,32 @@ class WorldModel:
             else:
                 info = None
 
+    def searchClosestAppleToGround(self):
+        nodes = self.getNodes()
+        min_distance = None
+        closest_apple = None
+        for node_pos in nodes:
+            info = nodes[node_pos]['info']
+            if(info):
+                distance = info['distance']
+                if(min_distance == None or distance < min_distance):
+                    min_distance = distance
+                    closest_apple = node_pos
+        return closest_apple
+
+    def appleIsReadyToPick(self, closest_apple, lever_pos, lever_speed):
+        nodes = self.getNodes()
+        distance = nodes[closest_apple]['info']['distance']
+        num_decisions_to_fall = distance/self.apple_speed
+        lever_apple_distance = abs(closest_apple - lever_pos)
+        num_decisions_to_reach = lever_apple_distance/lever_speed
+        if(num_decisions_to_fall == num_decisions_to_reach):
+            return True
+        return False
+
+    def getShortestPath(self, source, target):
+        return nx.shortest_path(self.graph, source, target, weight='weight')
+
     def saveGraphImg(self):
         nx.draw(self.graph)
         plt.savefig('graph.png')
@@ -145,6 +171,9 @@ class Agent:
         # Limite esquerdo da tela
         self.screen_left_pos_limit = 0 - lever_width/2
 
+        # Armazena o limite máximo de movimentação do agente
+        self.lever_speed_limit = lever_width/2 + max_lever_displacement
+
     # Essa função recebe dados dos sensores como argumento
     # e retorna o nova posicao. A nova posicao nao pode ser
     # mais distante que max_lever_displacement da anterior
@@ -159,31 +188,27 @@ class Agent:
             self.worlmodel.addNode(lever_pos, laser_scan)
             nodes = self.worlmodel.getNodes()
 
-        # Acessar a posição do mouse é apenas para facilitar depuração
-        # a solução final não deve acessar os objetos ou funções do pygame
-
-        # Armazena o limite máximo de movimentação do agente
-        lever_movement_limit = self.lever_width/2 + self.max_lever_displacement
-
         # Representa o tamanho da seção da maçã
         apple_section_size = apple_radius * 2 - 1
 
-        direction = 'right'
         desired_lever_pos = lever_pos
 
-        if(direction == 'right'):
+        arena_sections = int(self.arena_width / apple_section_size)
+
+        if(len(nodes) <= arena_sections):
             desired_lever_pos = lever_pos + apple_section_size
             if(desired_lever_pos >= self.screen_right_pos_limit):
-                desired_lever_pos = lever_pos
-        elif(direction == 'left'):
-            desired_lever_pos = lever_pos - apple_section_size
-            if(desired_lever_pos < self.screen_left_pos_limit):
                 desired_lever_pos = lever_pos
 
         if(self.worlmodel.hasNode(desired_lever_pos) == False):
             self.worlmodel.addNode(desired_lever_pos)
             weight = desired_lever_pos - lever_pos
             self.worlmodel.addEdge(lever_pos, desired_lever_pos, weight)
+
+        closest_apple = self.worlmodel.searchClosestAppleToGround()
+
+        if(closest_apple and self.worlmodel.appleIsReadyToPick(closest_apple, lever_pos, apple_section_size)):
+            print(self.worlmodel.getShortestPath(lever_pos, closest_apple))
 
         self.worlmodel.updateApplesDistances()
 
