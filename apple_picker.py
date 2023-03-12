@@ -97,8 +97,9 @@ class WorldModel:
         # As arestas do grafo terão o peso referente à distância de uma seção para outra
         self.graph = nx.Graph()
 
-    def addNode(self, info):
-        self.graph.add_node(info)
+    def addNode(self, id, info={}):
+        print(info)
+        self.graph.add_node(id, info=info)
 
     def getNodes(self):
         return self.graph.nodes()
@@ -108,8 +109,10 @@ class WorldModel:
 
     def getNodeByLeverPos(self, lever_pos):
         searched_node = None
-        for node in self.getNodes():
-            if(node.getLeverPos() == lever_pos):
+        nodes = self.getNodes()
+        for node in nodes:
+            print(nodes[node]['info'])
+            if(node == lever_pos):
                 searched_node = node
         return searched_node
 
@@ -145,14 +148,15 @@ class Agent:
     def decision(self, lever_pos, laser_scan, score):
         print(f"{lever_pos=}, {laser_scan=}, {score=}")
 
-        info = LaserScanInfo(lever_pos, laser_scan, score)
+        info = {'laser_scan': laser_scan}
+        nodes = self.worlmodel.getNodes()
         actual_node = None
 
         searched_node = self.worlmodel.getNodeByLeverPos(lever_pos)
         if(searched_node == None):
-            self.worlmodel.addNode(info)
+            self.worlmodel.addNode(lever_pos, info)
         else:
-            searched_node.setInfo(lever_pos, laser_scan, score)
+            nodes[searched_node]['info'] = info
 
         # Acessar a posição do mouse é apenas para facilitar depuração
         # a solução final não deve acessar os objetos ou funções do pygame
@@ -179,32 +183,13 @@ class Agent:
             actual_node = self.worlmodel.getNodeByLeverPos(
                 lever_pos)
 
-            self.worlmodel.addNode(
-                LaserScanInfo(desired_lever_pos, None, score))
+            self.worlmodel.addNode(desired_lever_pos)
             desired_node = self.worlmodel.getNodeByLeverPos(
                 desired_lever_pos)
             self.worlmodel.addEdge(
                 actual_node, desired_node, desired_lever_pos - lever_pos)
 
         return desired_lever_pos
-
-
-class LaserScanInfo:
-    def __init__(self, lever_pos, laser_scan, score):
-        self.lever_pos = lever_pos
-        self.laser_scan = laser_scan
-        self.score = score
-
-    def setInfo(self, lever_pos, laser_scan, score):
-        self.lever_pos = lever_pos
-        self.laser_scan = laser_scan
-        self.score = score
-
-    def getInfo(self):
-        return f"[{self.lever_pos}, {self.laser_scan}, {self.score}]"
-
-    def getLeverPos(self):
-        return self.lever_pos
 
 
 ########################################################################
@@ -219,7 +204,7 @@ agent = Agent(wm, max_lever_displacement, screen_width)
 
 running = True
 apples = []
-lever_pos = 0 - lever_width/2
+lever_pos = int(0 - lever_width/2)
 closest_apple = None
 while running:
     # Handle events
