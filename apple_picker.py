@@ -98,7 +98,6 @@ class WorldModel:
         self.graph = nx.Graph()
 
     def addNode(self, id, info={}):
-        print(info)
         self.graph.add_node(id, info=info)
 
     def getNodes(self):
@@ -107,14 +106,8 @@ class WorldModel:
     def addEdge(self, node1, node2, weight):
         self.graph.add_edge(node1, node2, weight=weight)
 
-    def getNodeByLeverPos(self, lever_pos):
-        searched_node = None
-        nodes = self.getNodes()
-        for node in nodes:
-            print(nodes[node]['info'])
-            if(node == lever_pos):
-                searched_node = node
-        return searched_node
+    def hasNode(self, node):
+        return self.graph.has_node(node)
 
     def saveGraphImg(self):
         nx.draw(self.graph)
@@ -150,13 +143,12 @@ class Agent:
 
         info = {'laser_scan': laser_scan}
         nodes = self.worlmodel.getNodes()
-        actual_node = None
 
-        searched_node = self.worlmodel.getNodeByLeverPos(lever_pos)
-        if(searched_node == None):
-            self.worlmodel.addNode(lever_pos, info)
+        if(self.worlmodel.hasNode(lever_pos)):
+            nodes[lever_pos]['info'] = info
         else:
-            nodes[searched_node]['info'] = info
+            self.worlmodel.addNode(lever_pos, info)
+            nodes = self.worlmodel.getNodes()
 
         # Acessar a posição do mouse é apenas para facilitar depuração
         # a solução final não deve acessar os objetos ou funções do pygame
@@ -179,15 +171,10 @@ class Agent:
             if(desired_lever_pos < self.screen_left_pos_limit):
                 desired_lever_pos = lever_pos
 
-        if(self.worlmodel.getNodeByLeverPos(desired_lever_pos) == None):
-            actual_node = self.worlmodel.getNodeByLeverPos(
-                lever_pos)
-
+        if(self.worlmodel.hasNode(desired_lever_pos) == False):
             self.worlmodel.addNode(desired_lever_pos)
-            desired_node = self.worlmodel.getNodeByLeverPos(
-                desired_lever_pos)
-            self.worlmodel.addEdge(
-                actual_node, desired_node, desired_lever_pos - lever_pos)
+            weight = desired_lever_pos - lever_pos
+            self.worlmodel.addEdge(lever_pos, desired_lever_pos, weight)
 
         return desired_lever_pos
 
@@ -270,6 +257,7 @@ while running:
     # Check if the game is over
     elapsed_time = (pygame.time.get_ticks() - game_start_time) / 1000
     if elapsed_time >= game_duration:
+        wm.saveGraphImg()
         running = False
 
     # Update the display
