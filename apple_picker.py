@@ -113,8 +113,9 @@ class WorldModel:
                 searched_node = node
         return searched_node
 
-    def printGraph(self):
+    def saveGraphImg(self):
         nx.draw(self.graph)
+        plt.savefig('graph.png')
 
 # Agent contains its reaction based on sensors and its understanding
 # of the world. This is where you decide what action you take
@@ -184,9 +185,6 @@ class Agent:
                 desired_lever_pos)
             self.worlmodel.addEdge(
                 actual_node, desired_node, desired_lever_pos - lever_pos)
-
-        # self.worlmodel.printGraph()
-        # plt.savefig('joao.png')
 
         return desired_lever_pos
 
