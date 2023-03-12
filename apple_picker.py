@@ -96,8 +96,9 @@ class WorldModel:
         # Cada seção será representada por um nó
         # As arestas do grafo terão o peso referente à distância de uma seção para outra
         self.graph = nx.Graph()
+        self.apple_speed = apple_speed
 
-    def addNode(self, id, info={}):
+    def addNode(self, id, info=None):
         self.graph.add_node(id, info=info)
 
     def getNodes(self):
@@ -108,6 +109,15 @@ class WorldModel:
 
     def hasNode(self, node):
         return self.graph.has_node(node)
+
+    def updateApplesDistances(self):
+        nodes = self.getNodes()
+        for node_pos in nodes:
+            info = nodes[node_pos]['info']
+            if(info and info['distance'] > 0):
+                info['distance'] -= self.apple_speed
+            else:
+                info = None
 
     def saveGraphImg(self):
         nx.draw(self.graph)
@@ -141,13 +151,12 @@ class Agent:
     def decision(self, lever_pos, laser_scan, score):
         print(f"{lever_pos=}, {laser_scan=}, {score=}")
 
-        info = {'laser_scan': laser_scan}
         nodes = self.worlmodel.getNodes()
 
         if(self.worlmodel.hasNode(lever_pos)):
-            nodes[lever_pos]['info'] = info
+            nodes[lever_pos]['info'] = laser_scan
         else:
-            self.worlmodel.addNode(lever_pos, info)
+            self.worlmodel.addNode(lever_pos, laser_scan)
             nodes = self.worlmodel.getNodes()
 
         # Acessar a posição do mouse é apenas para facilitar depuração
@@ -175,6 +184,8 @@ class Agent:
             self.worlmodel.addNode(desired_lever_pos)
             weight = desired_lever_pos - lever_pos
             self.worlmodel.addEdge(lever_pos, desired_lever_pos, weight)
+
+        self.worlmodel.updateApplesDistances()
 
         return desired_lever_pos
 
