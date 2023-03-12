@@ -199,10 +199,6 @@ while running:
     # Clear the screen
     screen.fill((255, 255, 255))
 
-    # Draw the lever
-
-    agent.decision(lever_pos, None, score)
-
     closest_apple_distance = None
     if closest_apple is not None:
         closest_apple_distance = {
