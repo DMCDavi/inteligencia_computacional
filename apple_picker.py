@@ -130,7 +130,15 @@ class Agent:
         print(f"{lever_pos=}, {laser_scan=}, {score=}")
 
         info = LaserScanInfo(lever_pos, laser_scan, score)
-        self.worlmodel.createNode(info)
+        nodes = self.worlmodel.getNodes()
+        can_create_node = True
+
+        for node in nodes:
+            if(node.getLeverPos() == lever_pos):
+                can_create_node = False
+
+        if(can_create_node):
+            self.worlmodel.createNode(info)
 
         # Acessar a posição do mouse é apenas para facilitar depuração
         # a solução final não deve acessar os objetos ou funções do pygame
@@ -164,6 +172,9 @@ class LaserScanInfo:
 
     def getInfo(self):
         return f"[{self.lever_pos}, {self.laser_scan}, {self.score}]"
+
+    def getLeverPos(self):
+        return self.lever_pos
 
 ########################################################################
 #
