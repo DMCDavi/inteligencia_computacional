@@ -216,6 +216,9 @@ class Agent:
             desired_lever_pos = shortest_path[0]
             shortest_path.remove(shortest_path[0])
 
+        if(nodes[desired_lever_pos] and nodes[desired_lever_pos]['info'] and nodes[desired_lever_pos]['info']['color'] == 'red'):
+            desired_lever_pos = lever_pos
+
         self.worlmodel.updateApplesDistances()
 
         return desired_lever_pos, shortest_path
