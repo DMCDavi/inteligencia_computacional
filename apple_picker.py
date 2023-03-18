@@ -2,7 +2,6 @@ import random
 import pygame
 import networkx as nx
 import matplotlib.pyplot as plt
-import time
 
 # Set up the game window
 pygame.init()
@@ -116,10 +115,10 @@ class WorldModel:
         nodes = self.getNodes()
         for node_pos in nodes:
             info = nodes[node_pos]['info']
-            if(info and info['distance'] > 0):
+            if info and info['distance'] > -self.apple_radius:
                 info['distance'] -= self.apple_speed
             else:
-                info = None
+                nodes[node_pos]['info'] = None
 
     def searchClosestGreenAppleToGround(self):
         nodes = self.getNodes()
@@ -241,17 +240,14 @@ class Agent:
 
         red_sections = self.worlmodel.getFallenRedApplesSections()
         if len(red_sections):
-            lever_left_limit = desired_lever_pos - self.lever_width/2
-            lever_right_limit = desired_lever_pos + self.lever_width/2
+            lever_range = list(range(int(desired_lever_pos - lever_width / 2), int(desired_lever_pos + lever_width / 2)))
             for red_section in red_sections:
-                if lever_right_limit >= red_section[0] and lever_right_limit <= red_section[1] or lever_left_limit >= red_section[0] and lever_left_limit <= red_section[1]:
-                    print(
-                        "Trocar o valor de desired_lever_pos para fugir da maçã vermelha")
+                red_section_range = list(range(red_section[0], red_section[1]))
+                intersecao = list(set(lever_range).intersection(set(red_section_range)))
+                if(len(intersecao)):
                     desired_lever_pos = lever_pos
-
         self.worlmodel.updateApplesDistances()
 
-        # time.sleep(0.5)
         return desired_lever_pos, shortest_path, direction
 
 
