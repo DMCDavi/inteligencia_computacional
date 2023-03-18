@@ -98,6 +98,7 @@ class WorldModel:
         # As arestas do grafo terão o peso referente à distância de uma seção para outra
         self.graph = nx.Graph()
         self.apple_speed = apple_speed
+        self.apple_radius = apple_radius
 
     def addNode(self, id, info=None):
         self.graph.add_node(id, info=info)
@@ -142,6 +143,17 @@ class WorldModel:
         if(num_decisions_to_fall == num_decisions_to_reach or num_decisions_to_fall == num_decisions_to_reach + 1):
             return True
         return False
+
+    def getFallenRedApplesSections(self):
+        nodes = self.getNodes()
+        red_sections = []
+        for node_pos in nodes:
+            info = nodes[node_pos]['info']
+            if(info and info['color'] == 'red' and info['distance'] <= 10):
+                red_section = [node_pos - (self.apple_radius - 1),
+                               node_pos + (self.apple_radius - 1)]
+                red_sections.append(red_section)
+        return red_sections
 
     def getShortestPath(self, source, target):
         return nx.shortest_path(self.graph, source, target, weight='weight')
@@ -227,8 +239,15 @@ class Agent:
             else:
                 desired_lever_pos = lever_pos
 
-        if(nodes[desired_lever_pos] and nodes[desired_lever_pos]['info'] and nodes[desired_lever_pos]['info']['color'] == 'red' and nodes[desired_lever_pos]['info']['distance'] == 5):
-            desired_lever_pos = lever_pos
+        red_sections = self.worlmodel.getFallenRedApplesSections()
+        if len(red_sections):
+            lever_left_limit = desired_lever_pos - self.lever_width/2
+            lever_right_limit = desired_lever_pos + self.lever_width/2
+            for red_section in red_sections:
+                if lever_right_limit >= red_section[0] and lever_right_limit <= red_section[1] or lever_left_limit >= red_section[0] and lever_left_limit <= red_section[1]:
+                    print(
+                        "Trocar o valor de desired_lever_pos para fugir da maçã vermelha")
+                    desired_lever_pos = lever_pos
 
         self.worlmodel.updateApplesDistances()
 
