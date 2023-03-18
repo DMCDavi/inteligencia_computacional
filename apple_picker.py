@@ -2,6 +2,7 @@ import random
 import pygame
 import networkx as nx
 import matplotlib.pyplot as plt
+import time
 
 # Set up the game window
 pygame.init()
@@ -138,7 +139,7 @@ class WorldModel:
         num_decisions_to_fall = distance/self.apple_speed
         lever_apple_distance = abs(closest_apple - lever_pos)
         num_decisions_to_reach = lever_apple_distance/lever_speed
-        if(num_decisions_to_fall == num_decisions_to_reach):
+        if(num_decisions_to_fall == num_decisions_to_reach or num_decisions_to_fall == num_decisions_to_reach + 1):
             return True
         return False
 
@@ -177,7 +178,7 @@ class Agent:
     # Essa função recebe dados dos sensores como argumento
     # e retorna o nova posicao. A nova posicao nao pode ser
     # mais distante que max_lever_displacement da anterior
-    def decision(self, lever_pos, laser_scan, score, shortest_path):
+    def decision(self, lever_pos, laser_scan, score, shortest_path, direction):
         print(f"{lever_pos=}, {laser_scan=}, {score=}")
 
         nodes = self.worlmodel.getNodes()
@@ -195,10 +196,16 @@ class Agent:
 
         arena_sections = int(self.arena_width / apple_section_size)
 
-        if(len(nodes) <= arena_sections):
+        if(direction == 'right'):
             desired_lever_pos = lever_pos + apple_section_size
             if(desired_lever_pos >= self.screen_right_pos_limit):
-                desired_lever_pos = lever_pos
+                desired_lever_pos = lever_pos - apple_section_size
+                direction = 'left'
+        elif(direction == 'left'):
+            desired_lever_pos = lever_pos - apple_section_size
+            if(desired_lever_pos < self.screen_left_pos_limit):
+                desired_lever_pos = lever_pos + apple_section_size
+                direction = 'right'
 
         if(self.worlmodel.hasNode(desired_lever_pos) == False):
             self.worlmodel.addNode(desired_lever_pos)
@@ -207,21 +214,26 @@ class Agent:
 
         closest_apple = self.worlmodel.searchClosestGreenAppleToGround()
 
-        if(closest_apple and self.worlmodel.appleIsReadyToPick(closest_apple, lever_pos, apple_section_size)):
-            shortest_path = self.worlmodel.getShortestPath(
-                lever_pos, closest_apple)
-            shortest_path.remove(shortest_path[0])
-
         if(len(shortest_path)):
             desired_lever_pos = shortest_path[0]
             shortest_path.remove(shortest_path[0])
+        elif(closest_apple and self.worlmodel.appleIsReadyToPick(closest_apple, lever_pos, apple_section_size)):
+            shortest_path = self.worlmodel.getShortestPath(
+                lever_pos, closest_apple)
+            if(len(shortest_path) >= 2):
+                shortest_path.remove(shortest_path[0])
+                desired_lever_pos = shortest_path[0]
+                shortest_path.remove(shortest_path[0])
+            else:
+                desired_lever_pos = lever_pos
 
-        if(nodes[desired_lever_pos] and nodes[desired_lever_pos]['info'] and nodes[desired_lever_pos]['info']['color'] == 'red'):
+        if(nodes[desired_lever_pos] and nodes[desired_lever_pos]['info'] and nodes[desired_lever_pos]['info']['color'] == 'red' and nodes[desired_lever_pos]['info']['distance'] == 5):
             desired_lever_pos = lever_pos
 
         self.worlmodel.updateApplesDistances()
 
-        return desired_lever_pos, shortest_path
+        # time.sleep(0.5)
+        return desired_lever_pos, shortest_path, direction
 
 
 ########################################################################
@@ -239,6 +251,7 @@ apples = []
 lever_pos = int(0 - lever_width/2)
 closest_apple = None
 shortest_path = []
+direction = 'right'
 while running:
     # Handle events
     for event in pygame.event.get():
@@ -255,8 +268,8 @@ while running:
             "color": "red" if closest_apple[2] == (255, 0, 0) else "green"
         }
     #print(f"{closest_apple_distance=} with data {closest_apple=}")
-    desired_lever_pos, shortest_path = agent.decision(
-        lever_pos, closest_apple_distance, score, shortest_path)
+    desired_lever_pos, shortest_path, direction = agent.decision(
+        lever_pos, closest_apple_distance, score, shortest_path, direction)
     if abs(lever_pos - desired_lever_pos) > lever_width/2 + max_lever_displacement:
         print("Max lever displacement exceeded")
     else:
