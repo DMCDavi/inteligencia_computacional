@@ -206,12 +206,14 @@ class Agent:
         desired_lever_pos = lever_pos
         self.worlmodel.set_node_info(lever_pos, laser_scan)
 
+        # Caso ele já tenha calculado um caminho para capturar uma maçã verde, move por ele
         if len(closest_apple_path):
             desired_lever_pos = self.move_through_path(closest_apple_path)
         else:
             closest_apple = self.worlmodel.search_closest_green_apple_to_ground()
-
+            # Verifica se a maçã mais próxima do chão está pronta para ser capturada
             if closest_apple and self.is_apple_ready_to_pick(closest_apple):
+                # Calcula o menor caminho até a maçã
                 closest_apple_path = self.worlmodel.get_shortest_path(lever_pos, closest_apple)
                 if len(closest_apple_path):
                     desired_lever_pos = self.move_through_path(closest_apple_path)
