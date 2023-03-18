@@ -92,72 +92,94 @@ def find_apple_in_laser_range(x_pos, apples):
 # to represent and predict how the world works
 class WorldModel:
     def __init__(self):
-        # Grafo ponderado que conterá as informações das seções da tela a serem visitadas pelo agente
-        # Cada seção será representada por um nó
-        # As arestas do grafo terão o peso referente à distância de uma seção para outra
         self.graph = nx.Graph()
         self.apple_speed = apple_speed
         self.apple_radius = apple_radius
+        # Representa o tamanho da seção da maçã
+        self.apple_section_size = apple_radius * 2 - 1
+        # Limite direito da tela
+        self.screen_right_pos_limit = screen_width - lever_width/2 - 1
+        # Limite esquerdo da tela
+        self.screen_left_pos_limit = 0 - lever_width/2
 
-    def addNode(self, id, info=None):
-        self.graph.add_node(id, info=info)
+        self.create_map()
 
-    def getNodes(self):
+    # Cria o "mapa" do mundo, composto pelas seções da maçã
+    # Cada seção é representada pelo nó do grafo, e o id é sua primeira posição no eixo x
+    # O peso da aresta é o tamanho da seção
+    # Cada nó tem pelo menos uma aresta e no máximo duas
+    def create_map(self):
+        sections_positions = list(range(int(self.screen_left_pos_limit), int(self.screen_right_pos_limit), self.apple_section_size))
+        for i in range(len(sections_positions)):
+            self.add_node(sections_positions[i])
+            if i > 0:
+                self.add_edge(sections_positions[i - 1], sections_positions[i], self.apple_section_size)
+        self.save_graph_img()
+
+    def add_node(self, node_id, info=None):
+        self.graph.add_node(node_id, info=info)
+
+    def get_nodes(self):
         return self.graph.nodes()
 
-    def addEdge(self, node1, node2, weight):
+    def add_edge(self, node1, node2, weight):
         self.graph.add_edge(node1, node2, weight=weight)
 
-    def hasNode(self, node):
+    def has_node(self, node):
         return self.graph.has_node(node)
 
-    def updateApplesDistances(self):
-        nodes = self.getNodes()
-        for node_pos in nodes:
-            info = nodes[node_pos]['info']
+    def set_node_info(self, node_id, info):
+        if self.has_node(node_id):
+            nodes = self.get_nodes()
+            nodes[node_id]['info'] = info
+
+    # Atualiza o estado do mundo após cada decisão
+    # As maçãs caem uma certa quantidade de pixels após cada decisão
+    def update_apples_distances(self):
+        nodes = self.get_nodes()
+        for node_id in nodes:
+            info = nodes[node_id]['info']
+            # As maçãs só desaparecem do mapa quando seu centro atinge o chão
             if info and info['distance'] > -self.apple_radius:
                 info['distance'] -= self.apple_speed
             else:
-                nodes[node_pos]['info'] = None
+                nodes[node_id]['info'] = None
 
-    def searchClosestGreenAppleToGround(self):
-        nodes = self.getNodes()
+    # Busca qual é a maçã que está mais próxima de cair no chão
+    def search_closest_green_apple_to_ground(self):
+        nodes = self.get_nodes()
         min_distance = None
-        closest_apple = None
-        for node_pos in nodes:
-            info = nodes[node_pos]['info']
-            if(info and info['color'] == 'green'):
+        closest_green_apple = None
+        for node in nodes:
+            info = nodes[node]['info']
+            if info and info['color'] == 'green':
                 distance = info['distance']
-                if(min_distance == None or distance < min_distance):
+                if min_distance is None or distance < min_distance:
                     min_distance = distance
-                    closest_apple = node_pos
-        return closest_apple
+                    closest_green_apple = node
+        return closest_green_apple
 
-    def appleIsReadyToPick(self, closest_apple, lever_pos, lever_speed):
-        nodes = self.getNodes()
-        distance = nodes[closest_apple]['info']['distance']
-        num_decisions_to_fall = distance/self.apple_speed
-        lever_apple_distance = abs(closest_apple - lever_pos)
-        num_decisions_to_reach = lever_apple_distance/lever_speed
-        if(num_decisions_to_fall == num_decisions_to_reach or num_decisions_to_fall == num_decisions_to_reach + 1):
-            return True
-        return False
-
-    def getFallenRedApplesSections(self):
-        nodes = self.getNodes()
+    # Busca quais são as seções em que, a qualquer instante, é possível cair uma maçã vermelha
+    def get_fallen_red_apples_sections(self):
+        nodes = self.get_nodes()
         red_sections = []
-        for node_pos in nodes:
-            info = nodes[node_pos]['info']
-            if(info and info['color'] == 'red' and info['distance'] <= 10):
-                red_section = [node_pos - (self.apple_radius - 1),
-                               node_pos + (self.apple_radius - 1)]
+
+        for apple_pos in nodes:
+            info = nodes[apple_pos]['info']
+            if info and info['color'] == 'red' and info['distance'] <= 10:
+                # O cesto só captura se tocar no centro da maçã
+                red_section = [apple_pos - (self.apple_radius - 1),
+                               apple_pos + (self.apple_radius - 1)]
                 red_sections.append(red_section)
         return red_sections
 
-    def getShortestPath(self, source, target):
-        return nx.shortest_path(self.graph, source, target, weight='weight')
+    # Retorna o caminho mais curto entre dois nós
+    def get_shortest_path(self, source, target):
+        shortest_path = nx.shortest_path(self.graph, source, target, weight='weight')
+        shortest_path.remove(source)
+        return shortest_path
 
-    def saveGraphImg(self):
+    def save_graph_img(self):
         nx.draw(self.graph)
         plt.savefig('graph.png')
 
@@ -166,90 +188,101 @@ class WorldModel:
 
 
 class Agent:
-    def __init__(self, wm, max_lever_displacement, arena_width):
+    def __init__(self, wm, max_lever_displacement):
         self.worlmodel = wm
         # O maximo de unidades que voce pode se mover na decisao
         self.max_lever_displacement = max_lever_displacement
-
-        # Tamanho da arena
-        self.arena_width = arena_width
-
         # Tamanho do cesto
         self.lever_width = lever_width
-
-        # Limite direito da tela
-        self.screen_right_pos_limit = arena_width - lever_width/2 - 1
-
-        # Limite esquerdo da tela
-        self.screen_left_pos_limit = 0 - lever_width/2
-
         # Armazena o limite máximo de movimentação do agente
         self.lever_speed_limit = lever_width/2 + max_lever_displacement
 
     # Essa função recebe dados dos sensores como argumento
     # e retorna o nova posicao. A nova posicao nao pode ser
     # mais distante que max_lever_displacement da anterior
-    def decision(self, lever_pos, laser_scan, score, shortest_path, direction):
+    def decision(self, lever_pos, laser_scan, score, closest_apple_path, direction):
         print(f"{lever_pos=}, {laser_scan=}, {score=}")
 
-        nodes = self.worlmodel.getNodes()
+        desired_lever_pos = lever_pos
+        self.worlmodel.set_node_info(lever_pos, laser_scan)
 
-        if(self.worlmodel.hasNode(lever_pos)):
-            nodes[lever_pos]['info'] = laser_scan
+        if len(closest_apple_path):
+            desired_lever_pos = self.move_through_path(closest_apple_path)
         else:
-            self.worlmodel.addNode(lever_pos, laser_scan)
-            nodes = self.worlmodel.getNodes()
+            closest_apple = self.worlmodel.search_closest_green_apple_to_ground()
 
-        # Representa o tamanho da seção da maçã
-        apple_section_size = apple_radius * 2 - 1
+            if closest_apple and self.is_apple_ready_to_pick(closest_apple):
+                closest_apple_path = self.worlmodel.get_shortest_path(lever_pos, closest_apple)
+                if len(closest_apple_path):
+                    desired_lever_pos = self.move_through_path(closest_apple_path)
+            else:
+                desired_lever_pos, direction = self.do_sweep(direction)
 
+        red_sections = self.worlmodel.get_fallen_red_apples_sections()
+        desired_lever_pos = self.avoid_red_sections(red_sections, desired_lever_pos)
+
+        self.worlmodel.update_apples_distances()
+
+        return desired_lever_pos, closest_apple_path, direction
+
+    # Faz a varredura pelo mapa para coletar informações
+    # Movimenta na forma de zigue-zague, percorre toda a direita e depois toda a esquerda
+    def do_sweep(self, direction):
         desired_lever_pos = lever_pos
 
-        arena_sections = int(self.arena_width / apple_section_size)
-
-        if(direction == 'right'):
-            desired_lever_pos = lever_pos + apple_section_size
-            if(desired_lever_pos >= self.screen_right_pos_limit):
-                desired_lever_pos = lever_pos - apple_section_size
+        if direction == 'right':
+            desired_lever_pos = self.move_right(self.worlmodel.apple_section_size)
+            if desired_lever_pos >= self.worlmodel.screen_right_pos_limit:
+                desired_lever_pos = self.move_left(self.worlmodel.apple_section_size)
                 direction = 'left'
-        elif(direction == 'left'):
-            desired_lever_pos = lever_pos - apple_section_size
-            if(desired_lever_pos < self.screen_left_pos_limit):
-                desired_lever_pos = lever_pos + apple_section_size
+        elif direction == 'left':
+            desired_lever_pos = self.move_left(self.worlmodel.apple_section_size)
+            if desired_lever_pos < self.worlmodel.screen_left_pos_limit:
+                desired_lever_pos = self.move_right(self.worlmodel.apple_section_size)
                 direction = 'right'
 
-        if(self.worlmodel.hasNode(desired_lever_pos) == False):
-            self.worlmodel.addNode(desired_lever_pos)
-            weight = desired_lever_pos - lever_pos
-            self.worlmodel.addEdge(lever_pos, desired_lever_pos, weight)
+        return desired_lever_pos, direction
 
-        closest_apple = self.worlmodel.searchClosestGreenAppleToGround()
+    def move_right(self, steps):
+        return lever_pos + steps
 
-        if(len(shortest_path)):
-            desired_lever_pos = shortest_path[0]
-            shortest_path.remove(shortest_path[0])
-        elif(closest_apple and self.worlmodel.appleIsReadyToPick(closest_apple, lever_pos, apple_section_size)):
-            shortest_path = self.worlmodel.getShortestPath(
-                lever_pos, closest_apple)
-            if(len(shortest_path) >= 2):
-                shortest_path.remove(shortest_path[0])
-                desired_lever_pos = shortest_path[0]
-                shortest_path.remove(shortest_path[0])
-            else:
-                desired_lever_pos = lever_pos
+    def move_left(self, steps):
+        return lever_pos - steps
 
-        red_sections = self.worlmodel.getFallenRedApplesSections()
+    def move_through_path(self, path):
+        desired_lever_pos = path[0]
+        path.remove(path[0])
+        return desired_lever_pos
+
+    # Verifica se é o momento certo de caminhar para pegar a maçã
+    def is_apple_ready_to_pick(self, apple_pos):
+        nodes = self.worlmodel.get_nodes()
+
+        distance = nodes[apple_pos]['info']['distance']
+        num_decisions_to_fall = distance/self.worlmodel.apple_speed
+
+        lever_apple_distance = abs(apple_pos - lever_pos)
+        num_decisions_to_reach = lever_apple_distance/self.worlmodel.apple_section_size
+
+        if num_decisions_to_fall == num_decisions_to_reach - 1 or \
+                num_decisions_to_fall == num_decisions_to_reach or \
+                num_decisions_to_fall == num_decisions_to_reach + 1:
+            return True
+        return False
+
+    # Evita que o agente vá para seções em que é possível pegar uma maçã vermelha
+    def avoid_red_sections(self, red_sections, desired_lever_pos):
         if len(red_sections):
-            lever_range = list(range(int(desired_lever_pos - lever_width / 2), int(desired_lever_pos + lever_width / 2)))
+            lever_range = list(range(
+                int(desired_lever_pos - self.lever_width / 2),
+                int(desired_lever_pos + self.lever_width / 2))
+            )
             for red_section in red_sections:
                 red_section_range = list(range(red_section[0], red_section[1]))
-                intersecao = list(set(lever_range).intersection(set(red_section_range)))
-                if(len(intersecao)):
-                    desired_lever_pos = lever_pos
-        self.worlmodel.updateApplesDistances()
-
-        return desired_lever_pos, shortest_path, direction
-
+                pixels_intersection = list(set(lever_range).intersection(set(red_section_range)))
+                if len(pixels_intersection):
+                    return lever_pos
+        return desired_lever_pos
 
 ########################################################################
 #
@@ -259,7 +292,7 @@ class Agent:
 #
 ########################################################################
 wm = WorldModel()
-agent = Agent(wm, max_lever_displacement, screen_width)
+agent = Agent(wm, max_lever_displacement)
 
 running = True
 apples = []
@@ -331,7 +364,7 @@ while running:
     # Check if the game is over
     elapsed_time = (pygame.time.get_ticks() - game_start_time) / 1000
     if elapsed_time >= game_duration:
-        wm.saveGraphImg()
+        wm.save_graph_img()
         running = False
 
     # Update the display
