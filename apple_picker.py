@@ -409,7 +409,6 @@ while running:
     # Check if the game is over
     elapsed_time = (pygame.time.get_ticks() - game_start_time) / 1000
     if elapsed_time >= game_duration:
-        wm.save_graph_img()
         running = False
 
     # Update the display
