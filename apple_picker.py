@@ -317,10 +317,15 @@ class Agent:
         right_safe_limit = red_section[1] + self.lever_width / 2
 
         closest_right_safe_section = next(
-            pos for pos in sections if pos >= right_safe_limit)
-        closest_left_safe_section = next(pos for pos in list(sections)[
-                                         ::-1] if pos <= left_safe_limit)
-        if abs(closest_left_safe_section - lever_pos_x) < abs(closest_right_safe_section - lever_pos_x):
+            (pos for pos in sections if pos >= right_safe_limit), None)
+        closest_left_safe_section = next(
+            (pos for pos in reversed(list(sections)) if pos <= left_safe_limit), None)
+
+        if closest_right_safe_section is None:
+            closest_safe_section = closest_left_safe_section
+        elif closest_left_safe_section is None:
+            closest_safe_section = closest_right_safe_section
+        elif abs(closest_left_safe_section - lever_pos_x) < abs(closest_right_safe_section - lever_pos_x):
             closest_safe_section = closest_left_safe_section
         else:
             closest_safe_section = closest_right_safe_section
