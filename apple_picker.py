@@ -183,6 +183,7 @@ class WorldModel:
         nx.draw(self.graph)
         plt.savefig('graph.png')
 
+
 # Agent contains its reaction based on sensors and its understanding
 # of the world. This is where you decide what action you take
 
@@ -200,56 +201,63 @@ class Agent:
     # Essa função recebe dados dos sensores como argumento
     # e retorna o nova posicao. A nova posicao nao pode ser
     # mais distante que max_lever_displacement da anterior
-    def decision(self, lever_pos, laser_scan, score, closest_apple_path, direction):
-        print(f"{lever_pos=}, {laser_scan=}, {score=}")
+    def decision(self, lever_pos_x, laser_scan, score, best_path, direction):
+        print(f"{lever_pos_x=}, {laser_scan=}, {score=}")
 
-        desired_lever_pos = lever_pos
-        self.worlmodel.set_node_info(lever_pos, laser_scan)
+        desired_lever_pos = lever_pos_x
+        self.worlmodel.set_node_info(lever_pos_x, laser_scan)
 
-        # Caso ele já tenha calculado um caminho para capturar uma maçã verde, move por ele
-        if len(closest_apple_path):
-            desired_lever_pos = self.move_through_path(closest_apple_path)
+        # Caso ele já tenha calculado um caminho, move por ele
+        if len(best_path):
+            desired_lever_pos = self.move_through_path(best_path)
         else:
-            closest_apple = self.worlmodel.search_closest_green_apple_to_ground()
+            closest_apple_to_ground = self.worlmodel.search_closest_green_apple_to_ground()
             # Verifica se a maçã mais próxima do chão está pronta para ser capturada
-            if closest_apple and self.is_apple_ready_to_pick(closest_apple):
+            if closest_apple_to_ground and self.is_apple_ready_to_pick(closest_apple_to_ground, lever_pos_x):
                 # Calcula o menor caminho até a maçã
-                closest_apple_path = self.worlmodel.get_shortest_path(lever_pos, closest_apple)
-                if len(closest_apple_path):
-                    desired_lever_pos = self.move_through_path(closest_apple_path)
+                best_path = self.worlmodel.get_shortest_path(
+                    lever_pos_x, closest_apple_to_ground)
+                if len(best_path):
+                    desired_lever_pos = self.move_through_path(best_path)
             else:
-                desired_lever_pos, direction = self.do_sweep(direction)
+                desired_lever_pos, direction = self.do_sweep(
+                    direction, lever_pos_x)
 
         red_sections = self.worlmodel.get_fallen_red_apples_sections()
-        desired_lever_pos = self.avoid_red_sections(red_sections, desired_lever_pos)
+        desired_lever_pos, best_path = self.avoid_red_sections(
+            red_sections, desired_lever_pos, lever_pos_x, best_path)
 
         self.worlmodel.update_apples_distances()
 
-        return desired_lever_pos, closest_apple_path, direction
+        return desired_lever_pos, best_path, direction
 
     # Faz a varredura pelo mapa para coletar informações
     # Movimenta na forma de zigue-zague, percorre toda a direita e depois toda a esquerda
-    def do_sweep(self, direction):
-        desired_lever_pos = lever_pos
+    def do_sweep(self, direction, lever_pos_x):
+        desired_lever_pos = lever_pos_x
 
         if direction == 'right':
-            desired_lever_pos = self.move_right(self.worlmodel.apple_section_size)
+            desired_lever_pos = self.move_right(self.worlmodel.apple_section_size, lever_pos_x
+                                                )
             if desired_lever_pos >= self.worlmodel.screen_right_pos_limit:
-                desired_lever_pos = self.move_left(self.worlmodel.apple_section_size)
+                desired_lever_pos = self.move_left(
+                    self.worlmodel.apple_section_size, lever_pos_x)
                 direction = 'left'
         elif direction == 'left':
-            desired_lever_pos = self.move_left(self.worlmodel.apple_section_size)
+            desired_lever_pos = self.move_left(
+                self.worlmodel.apple_section_size, lever_pos_x)
             if desired_lever_pos < self.worlmodel.screen_left_pos_limit:
-                desired_lever_pos = self.move_right(self.worlmodel.apple_section_size)
+                desired_lever_pos = self.move_right(
+                    self.worlmodel.apple_section_size, lever_pos_x)
                 direction = 'right'
 
         return desired_lever_pos, direction
 
-    def move_right(self, steps):
-        return lever_pos + steps
+    def move_right(self, steps, lever_pos_x):
+        return lever_pos_x + steps
 
-    def move_left(self, steps):
-        return lever_pos - steps
+    def move_left(self, steps, lever_pos_x):
+        return lever_pos_x - steps
 
     def move_through_path(self, path):
         desired_lever_pos = path[0]
@@ -257,13 +265,13 @@ class Agent:
         return desired_lever_pos
 
     # Verifica se é o momento certo de caminhar para pegar a maçã
-    def is_apple_ready_to_pick(self, apple_pos):
+    def is_apple_ready_to_pick(self, apple_pos, lever_pos_x):
         nodes = self.worlmodel.get_nodes()
 
         distance = nodes[apple_pos]['info']['distance']
         num_decisions_to_fall = distance/self.worlmodel.apple_speed
 
-        lever_apple_distance = abs(apple_pos - lever_pos)
+        lever_apple_distance = abs(apple_pos - lever_pos_x)
         num_decisions_to_reach = lever_apple_distance/self.worlmodel.apple_section_size
 
         if num_decisions_to_fall == num_decisions_to_reach - 1 or \
@@ -272,19 +280,54 @@ class Agent:
             return True
         return False
 
-    # Evita que o agente vá para seções em que é possível pegar uma maçã vermelha
-    def avoid_red_sections(self, red_sections, desired_lever_pos):
+    # Evita que o agente pegue maçãs vermelhas
+    def avoid_red_sections(self, red_sections, desired_lever_pos, actual_lever_pos, path):
         if len(red_sections):
-            lever_range = list(range(
+            desired_lever_range = list(range(
                 int(desired_lever_pos - self.lever_width / 2),
                 int(desired_lever_pos + self.lever_width / 2))
             )
+            lever_range = list(range(
+                int(actual_lever_pos - self.lever_width / 2),
+                int(actual_lever_pos + self.lever_width / 2))
+            )
+            sections = self.worlmodel.get_nodes()
             for red_section in red_sections:
                 red_section_range = list(range(red_section[0], red_section[1]))
-                pixels_intersection = list(set(lever_range).intersection(set(red_section_range)))
-                if len(pixels_intersection):
-                    return lever_pos
-        return desired_lever_pos
+                desired_intersection = list(
+                    set(desired_lever_range).intersection(set(red_section_range)))
+                actual_intersection = list(
+                    set(lever_range).intersection(set(red_section_range)))
+                # Se o local onde ele vai se mover está dentro de uma seção vermelha, recalcula
+                if len(desired_intersection):
+                    # Caso o agente já esteja dentro de uma seção vermelha, calcula um caminho de fuga
+                    if len(actual_intersection):
+                        closest_safe_section = self.get_closest_safe_section(
+                            sections, red_section, actual_lever_pos)
+                        closest_path = self.worlmodel.get_shortest_path(
+                            actual_lever_pos, closest_safe_section)
+                        if len(closest_path):
+                            return self.move_through_path(closest_path), closest_path
+                    else:
+                        return actual_lever_pos, path
+        return desired_lever_pos, path
+
+    def get_closest_safe_section(self, sections, red_section, lever_pos_x):
+        left_safe_limit = red_section[0] - self.lever_width / 2
+        right_safe_limit = red_section[1] + self.lever_width / 2
+
+        closest_right_safe_section = next(
+            pos for pos in sections if pos >= right_safe_limit)
+        closest_left_safe_section = next(pos for pos in list(sections)[
+                                         ::-1] if pos <= left_safe_limit)
+        if abs(closest_left_safe_section - lever_pos_x) < abs(closest_right_safe_section - lever_pos_x):
+            closest_safe_section = closest_left_safe_section
+        else:
+            closest_safe_section = closest_right_safe_section
+        return closest_safe_section
+
+
+
 
 ########################################################################
 #
